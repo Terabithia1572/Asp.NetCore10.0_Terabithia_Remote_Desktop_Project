@@ -1,1 +1,5 @@
-<Solution />
+<Solution>
+  <Project Path="TerabithiaRemote.Server/TerabithiaRemote.Server.csproj" />
+  <Project Path="TerabithiaRemote.Shared/TerabithiaRemote.Shared.csproj" />
+  <Project Path="TerabithiaRemote.Viewer/TerabithiaRemote.Viewer.csproj" />
+</Solution>
