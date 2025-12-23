@@ -132,9 +132,23 @@ namespace TerabithiaRemote.Viewer
             try
             {
                 _connection = new HubConnectionBuilder()
-                    .WithUrl(HubUrl)
-                    .WithAutomaticReconnect()
-                    .Build();
+     .WithUrl(HubUrl, options =>
+     {
+         options.HttpMessageHandlerFactory = (handler) =>
+         {
+             if (handler is HttpClientHandler clientHandler)
+             {
+                 // Gerekiyorsa sertifika vb ayarları buraya gelir
+             }
+             return handler;
+         };
+     })
+     .WithAutomaticReconnect()
+     // Buraya dikkat:
+     .Build();
+
+                // Bağlantı nesnesi oluştuktan sonra sınırı artır
+                _connection.ServerTimeout = TimeSpan.FromSeconds(30);
 
                 _connection.On<string>("ServerHello", msg =>
                 {

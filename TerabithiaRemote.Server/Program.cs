@@ -4,7 +4,11 @@ using TerabithiaRemote.Server.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = true;
+    options.MaximumReceiveMessageSize = 10 * 1024 * 1024; // 10MB'a çýkardýk
+});
 // Servisi hem BackgroundService hem de dýþarýdan eriþilebilir sýnýf olarak kaydet
 builder.Services.AddSingleton<ScreenStreamerService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ScreenStreamerService>());

@@ -46,20 +46,27 @@ public class ScreenStreamerService : BackgroundService
 
     private ScreenFrameDto CaptureScreenJpeg(long quality)
     {
-        // Senin yazdığın GDI+ yakalama mantığını buraya taşıdık
         var bounds = System.Windows.Forms.Screen.PrimaryScreen.Bounds;
 
+        // PERFORMANS İPUCU: Ekranın tam boyutunu değil, %75 veya %50'sini gönderebiliriz.
+        // Şimdilik tam boy kalsın ama ilerde bir ayar (Scale) ekleyebiliriz.
         using var bmp = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format24bppRgb);
         using (var g = Graphics.FromImage(bmp))
         {
+            // GDI+ yakalama
             g.CopyFromScreen(bounds.Left, bounds.Top, 0, 0, bmp.Size, CopyPixelOperation.SourceCopy);
-            DrawCursor(g); // İmleci çizme metodun (aşağıda)
+
+            // İmleci çiz
+            DrawCursor(g);
 
             using var ms = new MemoryStream();
             var codec = GetJpegCodec();
+
+            // JPEG kalitesini ve hızını optimize eden parametreler
             var encParams = new EncoderParameters(1);
             encParams.Param[0] = new EncoderParameter(Encoder.Quality, quality);
 
+            // Ekstra: Eğer performans çok düşerse görüntüyü küçültüp kaydedebilirsin.
             bmp.Save(ms, codec, encParams);
 
             return new ScreenFrameDto
