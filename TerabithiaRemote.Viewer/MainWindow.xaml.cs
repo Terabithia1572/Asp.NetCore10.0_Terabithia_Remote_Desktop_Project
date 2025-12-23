@@ -27,7 +27,7 @@ namespace TerabithiaRemote.Viewer
         private int _lastFrameH = 1080;
         private int _remoteScreenW = 1920;
         private int _remoteScreenH = 1080;
-
+        private DateTime _lastMouseSent = DateTime.MinValue;
 
         public MainWindow()
         {
@@ -167,10 +167,15 @@ namespace TerabithiaRemote.Viewer
         }
         private async void ImgScreen_MouseMove(object sender, MouseEventArgs e)
         {
-            if (_connection == null) return;
+            if (_connection == null || _connection.State != HubConnectionState.Connected) return;
+
+            // Saniyede en fazla 30 mouse paketi gönder (yaklaşık her 33ms'de bir)
+            if ((DateTime.Now - _lastMouseSent).TotalMilliseconds < 33) return;
 
             var p = e.GetPosition(ImgScreen);
             if (!TryMapToRemotePoint(p, out int rx, out int ry)) return;
+
+            _lastMouseSent = DateTime.Now;
 
             await _connection.InvokeAsync("SendMouseInput",
                 new MouseInputDto { X = rx, Y = ry, Action = MouseAction.Move });
