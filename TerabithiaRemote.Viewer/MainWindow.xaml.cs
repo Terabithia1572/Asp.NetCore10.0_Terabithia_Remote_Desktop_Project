@@ -25,13 +25,64 @@ namespace TerabithiaRemote.Viewer
         private int _lastNormY;
         private int _lastFrameW = 1920;
         private int _lastFrameH = 1080;
-
+        private int _remoteScreenW = 1920;
+        private int _remoteScreenH = 1080;
 
 
         public MainWindow()
         {
             InitializeComponent();
         }
+
+
+        private System.Windows.Rect GetRenderedImageRect(System.Windows.Controls.Image image)
+        {
+            if (image.Source == null || image.ActualWidth <= 0 || image.ActualHeight <= 0)
+                return System.Windows.Rect.Empty;
+
+            double controlW = image.ActualWidth;
+            double controlH = image.ActualHeight;
+
+            // Source width/height (WPF ImageSource pixels)
+            double sourceW = image.Source.Width;
+            double sourceH = image.Source.Height;
+
+            if (sourceW <= 0 || sourceH <= 0)
+                return System.Windows.Rect.Empty;
+
+            // Uniform scale
+            double scale = Math.Min(controlW / sourceW, controlH / sourceH);
+            double renderedW = sourceW * scale;
+            double renderedH = sourceH * scale;
+
+            double offsetX = (controlW - renderedW) / 2.0;
+            double offsetY = (controlH - renderedH) / 2.0;
+
+            return new System.Windows.Rect(offsetX, offsetY, renderedW, renderedH);
+        }
+
+        private bool TryMapToRemotePoint(System.Windows.Point pInImageControl, out int rx, out int ry)
+        {
+            rx = ry = 0;
+
+            var rect = GetRenderedImageRect(ImgScreen);
+            if (rect == System.Windows.Rect.Empty) return false;
+            if (!rect.Contains(pInImageControl)) return false;
+
+            double nx = (pInImageControl.X - rect.X) / rect.Width;   // 0..1
+            double ny = (pInImageControl.Y - rect.Y) / rect.Height;  // 0..1
+
+            rx = (int)Math.Round(nx * (_remoteScreenW - 1));
+            ry = (int)Math.Round(ny * (_remoteScreenH - 1));
+
+            if (rx < 0) rx = 0;
+            if (ry < 0) ry = 0;
+            if (rx >= _remoteScreenW) rx = _remoteScreenW - 1;
+            if (ry >= _remoteScreenH) ry = _remoteScreenH - 1;
+
+            return true;
+        }
+
         private bool TryMapToFrameNormalized(System.Windows.Point p, out int normX, out int normY)
         {
             normX = 0; normY = 0;
@@ -94,13 +145,15 @@ namespace TerabithiaRemote.Viewer
                 {
                     Dispatcher.Invoke(() =>
                     {
-                        _lastFrameW = dto.Width;
-                        _lastFrameH = dto.Height;
+                        // Remote ekran boyutunu frame’den alıyoruz
+                        _remoteScreenW = dto.Width;
+                        _remoteScreenH = dto.Height;
 
                         ImgScreen.Source = JpegToBitmapSource(dto.JpegBytes);
                         TxtStatus.Text = $"Frame: {dto.Width}x{dto.Height} @ {dto.TimestampUnixMs}";
                     });
                 });
+
 
 
 
@@ -116,63 +169,45 @@ namespace TerabithiaRemote.Viewer
         {
             if (_connection == null) return;
 
-            var pos = e.GetPosition(ImgScreen);
+            var p = e.GetPosition(ImgScreen);
+            if (!TryMapToRemotePoint(p, out int rx, out int ry)) return;
 
-            var dto = new MouseInputDto
-            {
-                X = (int)pos.X,
-                Y = (int)pos.Y,
-                ViewWidth = (int)Math.Max(1, ImgScreen.ActualWidth),
-                ViewHeight = (int)Math.Max(1, ImgScreen.ActualHeight),
-                FrameWidth = _lastFrameW,
-                FrameHeight = _lastFrameH,
-                Action = MouseAction.Move
-            };
-
-            await _connection.InvokeAsync("SendMouseInput", dto);
+            await _connection.InvokeAsync("SendMouseInput",
+                new MouseInputDto { X = rx, Y = ry, Action = MouseAction.Move });
         }
+
 
         private async void ImgScreen_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (_connection == null) return;
 
-            var pos = e.GetPosition(ImgScreen);
-            var action = e.ChangedButton == MouseButton.Left ? MouseAction.LeftDown : MouseAction.RightDown;
+            var p = e.GetPosition(ImgScreen);
+            if (!TryMapToRemotePoint(p, out int rx, out int ry)) return;
 
-            var dto = new MouseInputDto
-            {
-                X = (int)pos.X,
-                Y = (int)pos.Y,
-                ViewWidth = (int)Math.Max(1, ImgScreen.ActualWidth),
-                ViewHeight = (int)Math.Max(1, ImgScreen.ActualHeight),
-                FrameWidth = _lastFrameW,
-                FrameHeight = _lastFrameH,
-                Action = action
-            };
+            var action = e.ChangedButton == MouseButton.Left
+                ? MouseAction.LeftDown
+                : MouseAction.RightDown;
 
-            await _connection.InvokeAsync("SendMouseInput", dto);
+            await _connection.InvokeAsync("SendMouseInput",
+                new MouseInputDto { X = rx, Y = ry, Action = action });
         }
+
 
         private async void ImgScreen_MouseUp(object sender, MouseButtonEventArgs e)
         {
             if (_connection == null) return;
 
-            var pos = e.GetPosition(ImgScreen);
-            var action = e.ChangedButton == MouseButton.Left ? MouseAction.LeftUp : MouseAction.RightUp;
+            var p = e.GetPosition(ImgScreen);
+            if (!TryMapToRemotePoint(p, out int rx, out int ry)) return;
 
-            var dto = new MouseInputDto
-            {
-                X = (int)pos.X,
-                Y = (int)pos.Y,
-                ViewWidth = (int)Math.Max(1, ImgScreen.ActualWidth),
-                ViewHeight = (int)Math.Max(1, ImgScreen.ActualHeight),
-                FrameWidth = _lastFrameW,
-                FrameHeight = _lastFrameH,
-                Action = action
-            };
+            var action = e.ChangedButton == MouseButton.Left
+                ? MouseAction.LeftUp
+                : MouseAction.RightUp;
 
-            await _connection.InvokeAsync("SendMouseInput", dto);
+            await _connection.InvokeAsync("SendMouseInput",
+                new MouseInputDto { X = rx, Y = ry, Action = action });
         }
+
 
 
 

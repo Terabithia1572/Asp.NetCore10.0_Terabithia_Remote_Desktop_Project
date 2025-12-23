@@ -8,38 +8,26 @@ namespace TerabithiaRemote.Server.Input
     {
         public static void ApplyMouse(MouseInputDto dto)
         {
-            // Güvenlik: bölme hatası olmasın
-            if (dto.ViewWidth <= 0 || dto.ViewHeight <= 0)
-                return;
-
+            // Ekran çözünürlüğü
             int screenW = GetSystemMetrics(SM_CXSCREEN);
             int screenH = GetSystemMetrics(SM_CYSCREEN);
 
-            // Viewer coords -> Screen pixel coords
-            int targetX = (int)Math.Round(dto.X * (screenW / (double)dto.ViewWidth));
-            int targetY = (int)Math.Round(dto.Y * (screenH / (double)dto.ViewHeight));
+            // Güvenlik
+            if (dto.ScreenWidth <= 0 || dto.ScreenHeight <= 0) return;
 
-            // Clamp
-            if (targetX < 0) targetX = 0;
-            if (targetY < 0) targetY = 0;
-            if (targetX > screenW - 1) targetX = screenW - 1;
-            if (targetY > screenH - 1) targetY = screenH - 1;
+            // Viewer koordinatını (dto.X,Y) -> gerçek ekran koordinatına map et
+            double nx = (dto.X / (double)dto.ScreenWidth) * screenW;
+            double ny = (dto.Y / (double)dto.ScreenHeight) * screenH;
 
-            // Absolute coords (0..65535)
-            int absX = (int)Math.Round(targetX * 65535.0 / (screenW - 1));
-            int absY = (int)Math.Round(targetY * 65535.0 / (screenH - 1));
+            // SendInput ABSOLUTE 0..65535 ister
+            int absX = (int)(nx * 65535 / (screenW - 1));
+            int absY = (int)(ny * 65535 / (screenH - 1));
 
-            uint flags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE;
+            uint flags = GetMouseFlag(dto.Action);
 
-            // Tıklama ise move + click flag aynı pakette
-            flags |= dto.Action switch
-            {
-                MouseAction.LeftDown => MOUSEEVENTF_LEFTDOWN,
-                MouseAction.LeftUp => MOUSEEVENTF_LEFTUP,
-                MouseAction.RightDown => MOUSEEVENTF_RIGHTDOWN,
-                MouseAction.RightUp => MOUSEEVENTF_RIGHTUP,
-                _ => 0
-            };
+            // Move ise absolute zorunlu
+            if (dto.Action == MouseAction.Move)
+                flags |= MOUSEEVENTF_ABSOLUTE;
 
             var input = new INPUT
             {
@@ -48,7 +36,10 @@ namespace TerabithiaRemote.Server.Input
                 {
                     dx = absX,
                     dy = absY,
-                    dwFlags = flags
+                    mouseData = 0,
+                    dwFlags = flags,
+                    time = 0,
+                    dwExtraInfo = IntPtr.Zero
                 }
             };
 
@@ -63,11 +54,27 @@ namespace TerabithiaRemote.Server.Input
                 ki = new KEYBDINPUT
                 {
                     wVk = (ushort)dto.VirtualKeyCode,
-                    dwFlags = dto.IsKeyDown ? 0u : KEYEVENTF_KEYUP
+                    wScan = 0,
+                    dwFlags = dto.IsKeyDown ? 0u : KEYEVENTF_KEYUP,
+                    time = 0,
+                    dwExtraInfo = IntPtr.Zero
                 }
             };
 
             SendInput(1, new[] { input }, Marshal.SizeOf(typeof(INPUT)));
+        }
+
+        private static uint GetMouseFlag(MouseAction action)
+        {
+            return action switch
+            {
+                MouseAction.Move => MOUSEEVENTF_MOVE,
+                MouseAction.LeftDown => MOUSEEVENTF_LEFTDOWN,
+                MouseAction.LeftUp => MOUSEEVENTF_LEFTUP,
+                MouseAction.RightDown => MOUSEEVENTF_RIGHTDOWN,
+                MouseAction.RightUp => MOUSEEVENTF_RIGHTUP,
+                _ => 0
+            };
         }
 
         #region WinAPI
