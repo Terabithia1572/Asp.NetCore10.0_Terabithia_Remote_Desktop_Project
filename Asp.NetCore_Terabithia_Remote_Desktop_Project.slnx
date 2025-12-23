@@ -1,5 +1,5 @@
 <Solution>
   <Project Path="TerabithiaRemote.Server/TerabithiaRemote.Server.csproj" />
   <Project Path="TerabithiaRemote.Shared/TerabithiaRemote.Shared.csproj" />
-  <Project Path="TerabithiaRemote.Viewer/TerabithiaRemote.Viewer.csproj" />
+  <Project Path="TerabithiaRemote.Viewer/TerabithiaRemote.Viewer.csproj" Id="95ad2bb7-7dbb-4a36-9ce3-90aa2f3fe79e" />
 </Solution>

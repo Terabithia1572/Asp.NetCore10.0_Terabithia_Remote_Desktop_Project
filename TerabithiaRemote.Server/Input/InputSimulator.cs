@@ -5,21 +5,41 @@ namespace TerabithiaRemote.Server.Input
 {
     public static class InputSimulator
     {
+        private const uint MOUSEEVENTF_ABSOLUTE = 0x8000;
+
         public static void ApplyMouse(MouseInputDto dto)
         {
-            var input = new INPUT
+            // önce imleci konuma götür (absolute)
+            var move = new INPUT
             {
                 type = INPUT_MOUSE,
                 mi = new MOUSEINPUT
                 {
                     dx = dto.X,
                     dy = dto.Y,
-                    dwFlags = GetMouseFlag(dto.Action)
+                    dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE
                 }
             };
 
-            SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
+            SendInput(1, new[] { move }, Marshal.SizeOf<INPUT>());
+
+            // sonra click varsa uygula
+            var flag = GetMouseFlag(dto.Action);
+            if (dto.Action != MouseAction.Move && flag != 0)
+            {
+                var click = new INPUT
+                {
+                    type = INPUT_MOUSE,
+                    mi = new MOUSEINPUT
+                    {
+                        dwFlags = flag
+                    }
+                };
+                SendInput(1, new[] { click }, Marshal.SizeOf<INPUT>());
+            }
         }
+
+
 
         public static void ApplyKeyboard(KeyboardInputDto dto)
         {
@@ -40,7 +60,7 @@ namespace TerabithiaRemote.Server.Input
         {
             return action switch
             {
-                MouseAction.Move => MOUSEEVENTF_MOVE,
+                MouseAction.Move => MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
                 MouseAction.LeftDown => MOUSEEVENTF_LEFTDOWN,
                 MouseAction.LeftUp => MOUSEEVENTF_LEFTUP,
                 MouseAction.RightDown => MOUSEEVENTF_RIGHTDOWN,
@@ -48,6 +68,7 @@ namespace TerabithiaRemote.Server.Input
                 _ => 0
             };
         }
+
 
         #region WinAPI
 

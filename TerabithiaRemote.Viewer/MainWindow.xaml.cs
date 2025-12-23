@@ -19,11 +19,59 @@ namespace TerabithiaRemote.Viewer
 
         private const string ServerBaseUrl = "https://localhost:7135";
         private const string HubUrl = ServerBaseUrl + "/remoteHub";
+        private int _lastFrameWidth;
+        private int _lastFrameHeight;
+        private int _lastNormX;
+        private int _lastNormY;
+
 
         public MainWindow()
         {
             InitializeComponent();
         }
+        private bool TryMapToFrameNormalized(System.Windows.Point p, out int normX, out int normY)
+        {
+            normX = 0; normY = 0;
+
+            if (_lastFrameWidth <= 0 || _lastFrameHeight <= 0) return false;
+            if (ImgScreen.ActualWidth <= 1 || ImgScreen.ActualHeight <= 1) return false;
+
+            // Image control içinde Uniform fit hesapla (letterbox alanlarını çıkar)
+            double controlW = ImgScreen.ActualWidth;
+            double controlH = ImgScreen.ActualHeight;
+
+            double imgW = _lastFrameWidth;
+            double imgH = _lastFrameHeight;
+
+            double scale = Math.Min(controlW / imgW, controlH / imgH);
+            double displayW = imgW * scale;
+            double displayH = imgH * scale;
+
+            double offsetX = (controlW - displayW) / 2.0;
+            double offsetY = (controlH - displayH) / 2.0;
+
+            double xOnImage = p.X - offsetX;
+            double yOnImage = p.Y - offsetY;
+
+            // Letterbox dışındaysa gönderme
+            if (xOnImage < 0 || yOnImage < 0 || xOnImage >= displayW || yOnImage >= displayH)
+                return false;
+
+            // Görüntü üstündeki gerçek piksele çevir
+            double pixelX = xOnImage / scale;
+            double pixelY = yOnImage / scale;
+
+            // 0..65535 normalize
+            normX = (int)Math.Round(pixelX * 65535.0 / Math.Max(1, (_lastFrameWidth - 1)));
+            normY = (int)Math.Round(pixelY * 65535.0 / Math.Max(1, (_lastFrameHeight - 1)));
+
+            // clamp
+            normX = Math.Max(0, Math.Min(65535, normX));
+            normY = Math.Max(0, Math.Min(65535, normY));
+
+            return true;
+        }
+
 
         private async void BtnConnect_Click(object sender, RoutedEventArgs e)
         {
@@ -43,10 +91,14 @@ namespace TerabithiaRemote.Viewer
                 {
                     Dispatcher.Invoke(() =>
                     {
+                        _lastFrameWidth = dto.Width;
+                        _lastFrameHeight = dto.Height;
+
                         ImgScreen.Source = JpegToBitmapSource(dto.JpegBytes);
                         TxtStatus.Text = $"Frame: {dto.Width}x{dto.Height} @ {dto.TimestampUnixMs}";
                     });
                 });
+
 
                 await _connection.StartAsync();
                 TxtStatus.Text = "Connected to hub.";
@@ -60,17 +112,23 @@ namespace TerabithiaRemote.Viewer
         {
             if (_connection == null) return;
 
-            var pos = e.GetPosition(ImgScreen);
+            var p = e.GetPosition(ImgScreen);
 
-            var dto = new MouseInputDto
+            if (!TryMapToFrameNormalized(p, out var nx, out var ny))
+                return;
+
+            _lastNormX = nx;
+            _lastNormY = ny;
+
+            await _connection.InvokeAsync("SendMouseInput", new MouseInputDto
             {
-                X = (int)pos.X,
-                Y = (int)pos.Y,
+                X = nx,
+                Y = ny,
                 Action = MouseAction.Move
-            };
-
-            await _connection.InvokeAsync("SendMouseInput", dto);
+            });
         }
+
+
         private async void ImgScreen_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (_connection == null) return;
@@ -79,8 +137,12 @@ namespace TerabithiaRemote.Viewer
                 ? MouseAction.LeftDown
                 : MouseAction.RightDown;
 
-            await _connection.InvokeAsync("SendMouseInput",
-                new MouseInputDto { Action = action });
+            await _connection.InvokeAsync("SendMouseInput", new MouseInputDto
+            {
+                X = _lastNormX,
+                Y = _lastNormY,
+                Action = action
+            });
         }
 
         private async void ImgScreen_MouseUp(object sender, MouseButtonEventArgs e)
@@ -91,9 +153,14 @@ namespace TerabithiaRemote.Viewer
                 ? MouseAction.LeftUp
                 : MouseAction.RightUp;
 
-            await _connection.InvokeAsync("SendMouseInput",
-                new MouseInputDto { Action = action });
+            await _connection.InvokeAsync("SendMouseInput", new MouseInputDto
+            {
+                X = _lastNormX,
+                Y = _lastNormY,
+                Action = action
+            });
         }
+       
         protected override async void OnKeyDown(KeyEventArgs e)
         {
             if (_connection == null) return;
