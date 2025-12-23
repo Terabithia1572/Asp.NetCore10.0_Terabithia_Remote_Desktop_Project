@@ -13,6 +13,7 @@ public class ScreenStreamerService : BackgroundService
     private bool _isStreaming = false;
     private int _fps = 10; // İstersen bunu artırabiliriz
     private string _lastFrameHash = string.Empty;
+    private DXGICapture _dxgi = new DXGICapture();
 
     public ScreenStreamerService(IHubContext<RemoteHub> hub)
     {
@@ -60,37 +61,27 @@ public class ScreenStreamerService : BackgroundService
 
     private ScreenFrameDto CaptureScreenJpeg(long quality)
     {
-        var bounds = System.Windows.Forms.Screen.PrimaryScreen.Bounds;
+        // GDI+ yerine DXGI kullanıyoruz
+        using var bmp = _dxgi.GetNextFrame();
 
-        // PERFORMANS İPUCU: Ekranın tam boyutunu değil, %75 veya %50'sini gönderebiliriz.
-        // Şimdilik tam boy kalsın ama ilerde bir ayar (Scale) ekleyebiliriz.
-        using var bmp = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format24bppRgb);
-        using (var g = Graphics.FromImage(bmp))
+        // Eğer ekran değişmediyse boş dön (bandwidth tasarrufu!)
+        if (bmp == null) return null;
+
+        using var ms = new MemoryStream();
+        var codec = GetJpegCodec();
+        var encParams = new EncoderParameters(1);
+        encParams.Param[0] = new EncoderParameter(Encoder.Quality, quality);
+
+        // İmleci çizmek istersen buraya DrawCursor(Graphics.FromImage(bmp)) ekleyebilirsin
+        bmp.Save(ms, codec, encParams);
+
+        return new ScreenFrameDto
         {
-            // GDI+ yakalama
-            g.CopyFromScreen(bounds.Left, bounds.Top, 0, 0, bmp.Size, CopyPixelOperation.SourceCopy);
-
-            // İmleci çiz
-            DrawCursor(g);
-
-            using var ms = new MemoryStream();
-            var codec = GetJpegCodec();
-
-            // JPEG kalitesini ve hızını optimize eden parametreler
-            var encParams = new EncoderParameters(1);
-            encParams.Param[0] = new EncoderParameter(Encoder.Quality, quality);
-
-            // Ekstra: Eğer performans çok düşerse görüntüyü küçültüp kaydedebilirsin.
-            bmp.Save(ms, codec, encParams);
-
-            return new ScreenFrameDto
-            {
-                JpegBytes = ms.ToArray(),
-                Width = bounds.Width,
-                Height = bounds.Height,
-                TimestampUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-            };
-        }
+            JpegBytes = ms.ToArray(),
+            Width = bmp.Width,
+            Height = bmp.Height,
+            TimestampUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        };
     }
 
     private ImageCodecInfo GetJpegCodec() =>
