@@ -1,27 +1,25 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
 using TerabithiaRemote.Server.Hubs;
 using TerabithiaRemote.Shared.Dtos;
+using TerabithiaRemote.Server.Services; // DXGICapture burada
 
-namespace TerabithiaRemote.Server.Services;
+namespace TerabithiaRemote.Server.BackgroundServices;
 
 public class ScreenStreamerService : BackgroundService
 {
     private readonly IHubContext<RemoteHub> _hub;
     private bool _isStreaming = false;
-    private int _fps = 10; // İstersen bunu artırabiliriz
-    private string _lastFrameHash = string.Empty;
-    private DXGICapture _dxgi = new DXGICapture();
+    private readonly DXGICapture _dxgi = new DXGICapture(); // Yeni motorumuz
 
-    public ScreenStreamerService(IHubContext<RemoteHub> hub)
+    public ScreenStreamerService(IHubContext<RemoteHub> _hubContext)
     {
-        _hub = hub;
+        _hub = _hubContext;
     }
 
-    // Bu metod dışarıdan (Controller'dan) çağrılacak
-    public void SetStreaming(bool status) => _isStreaming = status;
+    public void Start() => _isStreaming = true;
+    public void Stop() => _isStreaming = false;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -31,48 +29,37 @@ public class ScreenStreamerService : BackgroundService
             {
                 try
                 {
-                    var dto = CaptureScreenJpeg(70);
+                    var dto = CaptureScreenJpeg(70); // %70 Kalite
 
-                    // HASH KONTROLÜ: Görüntü değişti mi?
-                    string currentHash = ComputeHash(dto.JpegBytes);
-
-                    if (currentHash != _lastFrameHash)
+                    if (dto != null)
                     {
+                        // Sadece ekran değiştiğinde veri gönderiyoruz (DXGI sayesinde)
                         await _hub.Clients.All.SendAsync("ScreenFrame", dto, stoppingToken);
-                        _lastFrameHash = currentHash;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Capture Error: {ex.Message}");
+                    Console.WriteLine($"Stream Error: {ex.Message}");
                 }
             }
-            await Task.Delay(100, stoppingToken);
+            // Bekleme süresini 16ms yaparsak ~60 FPS, 33ms yaparsak ~30 FPS alırız
+            await Task.Delay(33, stoppingToken);
         }
-    }
-
-    // Hızlı bir şekilde byte dizisinin hash'ini alan yardımcı metod
-    private string ComputeHash(byte[] data)
-    {
-        using var md5 = System.Security.Cryptography.MD5.Create();
-        byte[] hash = md5.ComputeHash(data);
-        return Convert.ToBase64String(hash);
     }
 
     private ScreenFrameDto CaptureScreenJpeg(long quality)
     {
-        // GDI+ yerine DXGI kullanıyoruz
+        // DXGI motorundan kareyi iste
         using var bmp = _dxgi.GetNextFrame();
 
-        // Eğer ekran değişmediyse boş dön (bandwidth tasarrufu!)
+        // Eğer ekran değişmediyse DXGI null döner, biz de null döneriz (İnternet yemez)
         if (bmp == null) return null;
 
         using var ms = new MemoryStream();
-        var codec = GetJpegCodec();
+        var codec = GetJpegCodec("image/jpeg");
         var encParams = new EncoderParameters(1);
         encParams.Param[0] = new EncoderParameter(Encoder.Quality, quality);
 
-        // İmleci çizmek istersen buraya DrawCursor(Graphics.FromImage(bmp)) ekleyebilirsin
         bmp.Save(ms, codec, encParams);
 
         return new ScreenFrameDto
@@ -84,26 +71,8 @@ public class ScreenStreamerService : BackgroundService
         };
     }
 
-    private ImageCodecInfo GetJpegCodec() =>
-        ImageCodecInfo.GetImageEncoders().First(x => x.MimeType == "image/jpeg");
-
-    // Cursor çizme mantığını buraya aldık (DllImport'lar sınıf içinde olmalı)
-    private void DrawCursor(Graphics g)
+    private ImageCodecInfo GetJpegCodec(string mimeType)
     {
-        var ci = new CURSORINFO { cbSize = Marshal.SizeOf(typeof(CURSORINFO)) };
-        if (GetCursorInfo(ref ci) && ci.flags == 0x00000001)
-        {
-            DrawIconEx(g.GetHdc(), ci.ptScreenPos.x, ci.ptScreenPos.y, ci.hCursor, 0, 0, 0, IntPtr.Zero, 0x0003);
-            g.ReleaseHdc();
-        }
+        return ImageCodecInfo.GetImageEncoders().FirstOrDefault(c => c.MimeType == mimeType);
     }
-
-    #region WinAPI
-    [StructLayout(LayoutKind.Sequential)]
-    struct POINT { public int x, y; }
-    [StructLayout(LayoutKind.Sequential)]
-    struct CURSORINFO { public int cbSize, flags; public IntPtr hCursor; public POINT ptScreenPos; }
-    [DllImport("user32.dll")] static extern bool GetCursorInfo(ref CURSORINFO pci);
-    [DllImport("user32.dll")] static extern bool DrawIconEx(IntPtr hdc, int xLeft, int yTop, IntPtr hIcon, int cxWidth, int cyWidth, int istepIfAniCur, IntPtr hbrFlickerFreeDraw, int diFlags);
-    #endregion
 }
