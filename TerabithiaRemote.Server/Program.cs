@@ -1,6 +1,7 @@
 using TerabithiaRemote.Server.Hubs;
 using TerabithiaRemote.Server.Services;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();

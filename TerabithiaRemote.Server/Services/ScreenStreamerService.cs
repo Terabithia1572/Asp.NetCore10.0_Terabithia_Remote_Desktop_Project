@@ -5,7 +5,7 @@ using TerabithiaRemote.Server.Hubs;
 using TerabithiaRemote.Shared.Dtos;
 using TerabithiaRemote.Server.Services; // DXGICapture burada
 
-namespace TerabithiaRemote.Server.BackgroundServices;
+namespace TerabithiaRemote.Server.Services;
 
 public class ScreenStreamerService : BackgroundService
 {

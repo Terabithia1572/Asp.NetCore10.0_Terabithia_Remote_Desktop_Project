@@ -12,17 +12,19 @@ public class StreamController : ControllerBase
         _streamer = streamer;
     }
 
+    // StreamController.cs içindeki ilgili satırları şu şekilde değiştir:
+
     [HttpGet("start")]
     public IActionResult Start()
     {
-        _streamer.SetStreaming(true);
+        _streamer.Start(); // SetStreaming(true) yerine Start() kullanıyoruz
         return Ok("Streaming started");
     }
 
     [HttpGet("stop")]
     public IActionResult Stop()
     {
-        _streamer.SetStreaming(false);
+        _streamer.Stop(); // SetStreaming(false) yerine Stop() kullanıyoruz
         return Ok("Streaming stopped");
     }
 }
