@@ -12,6 +12,7 @@ public class ScreenStreamerService : BackgroundService
     private readonly IHubContext<RemoteHub> _hub;
     private bool _isStreaming = false;
     private int _fps = 10; // İstersen bunu artırabiliriz
+    private string _lastFrameHash = string.Empty;
 
     public ScreenStreamerService(IHubContext<RemoteHub> hub)
     {
@@ -30,18 +31,31 @@ public class ScreenStreamerService : BackgroundService
                 try
                 {
                     var dto = CaptureScreenJpeg(70);
-                    // Tüm bağlı client'lara gönder
-                    await _hub.Clients.All.SendAsync("ScreenFrame", dto, stoppingToken);
+
+                    // HASH KONTROLÜ: Görüntü değişti mi?
+                    string currentHash = ComputeHash(dto.JpegBytes);
+
+                    if (currentHash != _lastFrameHash)
+                    {
+                        await _hub.Clients.All.SendAsync("ScreenFrame", dto, stoppingToken);
+                        _lastFrameHash = currentHash;
+                    }
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Capture Error: {ex.Message}");
                 }
             }
-
-            // FPS'e göre bekleme süresi (1000ms / 10fps = 100ms)
-            await Task.Delay(1000 / _fps, stoppingToken);
+            await Task.Delay(100, stoppingToken);
         }
+    }
+
+    // Hızlı bir şekilde byte dizisinin hash'ini alan yardımcı metod
+    private string ComputeHash(byte[] data)
+    {
+        using var md5 = System.Security.Cryptography.MD5.Create();
+        byte[] hash = md5.ComputeHash(data);
+        return Convert.ToBase64String(hash);
     }
 
     private ScreenFrameDto CaptureScreenJpeg(long quality)

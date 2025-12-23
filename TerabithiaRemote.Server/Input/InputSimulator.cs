@@ -6,8 +6,10 @@ namespace TerabithiaRemote.Server.Input
 {
     public static class InputSimulator
     {
+        private const uint MOUSEEVENTF_VIRTUALDESK = 0x4000;
         public static void ApplyMouse(MouseInputDto dto)
         {
+
             // Ekran çözünürlüğü
             int screenW = GetSystemMetrics(SM_CXSCREEN);
             int screenH = GetSystemMetrics(SM_CYSCREEN);
@@ -26,8 +28,9 @@ namespace TerabithiaRemote.Server.Input
             uint flags = GetMouseFlag(dto.Action);
 
             // Move ise absolute zorunlu
+            // ApplyMouse içinde flags kısmına ekle:
             if (dto.Action == MouseAction.Move)
-                flags |= MOUSEEVENTF_ABSOLUTE;
+                flags |= (MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK);
 
             var input = new INPUT
             {
