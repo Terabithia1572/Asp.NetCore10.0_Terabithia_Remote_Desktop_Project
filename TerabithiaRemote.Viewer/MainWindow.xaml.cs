@@ -23,6 +23,9 @@ namespace TerabithiaRemote.Viewer
         private int _lastFrameHeight;
         private int _lastNormX;
         private int _lastNormY;
+        private int _lastFrameW = 1920;
+        private int _lastFrameH = 1080;
+
 
 
         public MainWindow()
@@ -91,13 +94,14 @@ namespace TerabithiaRemote.Viewer
                 {
                     Dispatcher.Invoke(() =>
                     {
-                        _lastFrameWidth = dto.Width;
-                        _lastFrameHeight = dto.Height;
+                        _lastFrameW = dto.Width;
+                        _lastFrameH = dto.Height;
 
                         ImgScreen.Source = JpegToBitmapSource(dto.JpegBytes);
                         TxtStatus.Text = $"Frame: {dto.Width}x{dto.Height} @ {dto.TimestampUnixMs}";
                     });
                 });
+
 
 
                 await _connection.StartAsync();
@@ -114,72 +118,62 @@ namespace TerabithiaRemote.Viewer
 
             var pos = e.GetPosition(ImgScreen);
 
-            int vw = (int)ImgScreen.ActualWidth;
-            int vh = (int)ImgScreen.ActualHeight;
-            if (vw <= 0 || vh <= 0) return;
-
             var dto = new MouseInputDto
             {
                 X = (int)pos.X,
                 Y = (int)pos.Y,
-                ViewWidth = vw,
-                ViewHeight = vh,
+                ViewWidth = (int)Math.Max(1, ImgScreen.ActualWidth),
+                ViewHeight = (int)Math.Max(1, ImgScreen.ActualHeight),
+                FrameWidth = _lastFrameW,
+                FrameHeight = _lastFrameH,
                 Action = MouseAction.Move
             };
 
             await _connection.InvokeAsync("SendMouseInput", dto);
         }
 
-
-
         private async void ImgScreen_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (_connection == null) return;
 
             var pos = e.GetPosition(ImgScreen);
+            var action = e.ChangedButton == MouseButton.Left ? MouseAction.LeftDown : MouseAction.RightDown;
 
-            int vw = (int)ImgScreen.ActualWidth;
-            int vh = (int)ImgScreen.ActualHeight;
-            if (vw <= 0 || vh <= 0) return;
-
-            var action = e.ChangedButton == MouseButton.Left
-                ? MouseAction.LeftDown
-                : MouseAction.RightDown;
-
-            await _connection.InvokeAsync("SendMouseInput", new MouseInputDto
+            var dto = new MouseInputDto
             {
                 X = (int)pos.X,
                 Y = (int)pos.Y,
-                ViewWidth = vw,
-                ViewHeight = vh,
+                ViewWidth = (int)Math.Max(1, ImgScreen.ActualWidth),
+                ViewHeight = (int)Math.Max(1, ImgScreen.ActualHeight),
+                FrameWidth = _lastFrameW,
+                FrameHeight = _lastFrameH,
                 Action = action
-            });
-        }
+            };
 
+            await _connection.InvokeAsync("SendMouseInput", dto);
+        }
 
         private async void ImgScreen_MouseUp(object sender, MouseButtonEventArgs e)
         {
             if (_connection == null) return;
 
             var pos = e.GetPosition(ImgScreen);
+            var action = e.ChangedButton == MouseButton.Left ? MouseAction.LeftUp : MouseAction.RightUp;
 
-            int vw = (int)ImgScreen.ActualWidth;
-            int vh = (int)ImgScreen.ActualHeight;
-            if (vw <= 0 || vh <= 0) return;
-
-            var action = e.ChangedButton == MouseButton.Left
-                ? MouseAction.LeftUp
-                : MouseAction.RightUp;
-
-            await _connection.InvokeAsync("SendMouseInput", new MouseInputDto
+            var dto = new MouseInputDto
             {
                 X = (int)pos.X,
                 Y = (int)pos.Y,
-                ViewWidth = vw,
-                ViewHeight = vh,
+                ViewWidth = (int)Math.Max(1, ImgScreen.ActualWidth),
+                ViewHeight = (int)Math.Max(1, ImgScreen.ActualHeight),
+                FrameWidth = _lastFrameW,
+                FrameHeight = _lastFrameH,
                 Action = action
-            });
+            };
+
+            await _connection.InvokeAsync("SendMouseInput", dto);
         }
+
 
 
         protected override async void OnKeyDown(KeyEventArgs e)
