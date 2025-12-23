@@ -112,26 +112,35 @@ namespace TerabithiaRemote.Viewer
         {
             if (_connection == null) return;
 
-            var p = e.GetPosition(ImgScreen);
+            var pos = e.GetPosition(ImgScreen);
 
-            if (!TryMapToFrameNormalized(p, out var nx, out var ny))
-                return;
+            int vw = (int)ImgScreen.ActualWidth;
+            int vh = (int)ImgScreen.ActualHeight;
+            if (vw <= 0 || vh <= 0) return;
 
-            _lastNormX = nx;
-            _lastNormY = ny;
-
-            await _connection.InvokeAsync("SendMouseInput", new MouseInputDto
+            var dto = new MouseInputDto
             {
-                X = nx,
-                Y = ny,
+                X = (int)pos.X,
+                Y = (int)pos.Y,
+                ViewWidth = vw,
+                ViewHeight = vh,
                 Action = MouseAction.Move
-            });
+            };
+
+            await _connection.InvokeAsync("SendMouseInput", dto);
         }
+
 
 
         private async void ImgScreen_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (_connection == null) return;
+
+            var pos = e.GetPosition(ImgScreen);
+
+            int vw = (int)ImgScreen.ActualWidth;
+            int vh = (int)ImgScreen.ActualHeight;
+            if (vw <= 0 || vh <= 0) return;
 
             var action = e.ChangedButton == MouseButton.Left
                 ? MouseAction.LeftDown
@@ -139,15 +148,24 @@ namespace TerabithiaRemote.Viewer
 
             await _connection.InvokeAsync("SendMouseInput", new MouseInputDto
             {
-                X = _lastNormX,
-                Y = _lastNormY,
+                X = (int)pos.X,
+                Y = (int)pos.Y,
+                ViewWidth = vw,
+                ViewHeight = vh,
                 Action = action
             });
         }
 
+
         private async void ImgScreen_MouseUp(object sender, MouseButtonEventArgs e)
         {
             if (_connection == null) return;
+
+            var pos = e.GetPosition(ImgScreen);
+
+            int vw = (int)ImgScreen.ActualWidth;
+            int vh = (int)ImgScreen.ActualHeight;
+            if (vw <= 0 || vh <= 0) return;
 
             var action = e.ChangedButton == MouseButton.Left
                 ? MouseAction.LeftUp
@@ -155,12 +173,15 @@ namespace TerabithiaRemote.Viewer
 
             await _connection.InvokeAsync("SendMouseInput", new MouseInputDto
             {
-                X = _lastNormX,
-                Y = _lastNormY,
+                X = (int)pos.X,
+                Y = (int)pos.Y,
+                ViewWidth = vw,
+                ViewHeight = vh,
                 Action = action
             });
         }
-       
+
+
         protected override async void OnKeyDown(KeyEventArgs e)
         {
             if (_connection == null) return;
