@@ -132,47 +132,69 @@ namespace TerabithiaRemote.Viewer
             try
             {
                 _connection = new HubConnectionBuilder()
-     .WithUrl(HubUrl, options =>
-     {
-         options.HttpMessageHandlerFactory = (handler) =>
-         {
-             if (handler is HttpClientHandler clientHandler)
-             {
-                 // Gerekiyorsa sertifika vb ayarları buraya gelir
-             }
-             return handler;
-         };
-     })
-     .WithAutomaticReconnect()
-     // Buraya dikkat:
-     .Build();
+                    .WithUrl(HubUrl, options =>
+                    {
+                        options.HttpMessageHandlerFactory = (handler) =>
+                        {
+                            if (handler is HttpClientHandler clientHandler)
+                            {
+                                // Gerekiyorsa sertifika vb ayarları buraya gelir
+                            }
+                            return handler;
+                        };
+                    })
+                    .WithAutomaticReconnect()
+                    .Build();
 
-                // Bağlantı nesnesi oluştuktan sonra sınırı artır
+                // Bağlantı nesnesi oluştuktan sonra zaman aşımı sınırını artır
                 _connection.ServerTimeout = TimeSpan.FromSeconds(30);
 
+                // Sunucu bağlandığında bize bir mesaj gönderirse (Opsiyonel)
                 _connection.On<string>("ServerHello", msg =>
                 {
                     Dispatcher.Invoke(() => TxtStatus.Text = msg);
                 });
 
+                // Sunucudan gelen ID bilgisini yakala (Kendi ID'mizi görmek için)
+                _connection.On<string>("ServerInfo", id =>
+                {
+                    Dispatcher.Invoke(() => TxtStatus.Text = $"Your ID: {id}. Waiting for session...");
+                });
+
+                // Session'a katılıp katılmadığımızın cevabını al
+                _connection.On<bool>("JoinStatus", success =>
+                {
+                    Dispatcher.Invoke(() => {
+                        TxtStatus.Text = success ? "Session Joined! Ready to Stream." : "Invalid Session ID!";
+                    });
+                });
+
+                // Ekran kareleri geldiğinde render et
                 _connection.On<ScreenFrameDto>("ScreenFrame", dto =>
                 {
                     Dispatcher.Invoke(() =>
                     {
-                        // Remote ekran boyutunu frame’den alıyoruz
                         _remoteScreenW = dto.Width;
                         _remoteScreenH = dto.Height;
 
                         ImgScreen.Source = JpegToBitmapSource(dto.JpegBytes);
-                        TxtStatus.Text = $"Frame: {dto.Width}x{dto.Height} @ {dto.TimestampUnixMs}";
+                        TxtStatus.Text = $"Streaming: {dto.Width}x{dto.Height} @ {dto.TimestampUnixMs}";
                     });
                 });
 
-
-
-
+                // Bağlantıyı başlat
                 await _connection.StartAsync();
-                TxtStatus.Text = "Connected to hub.";
+                TxtStatus.Text = "Connected to hub. Joining session...";
+
+                // Arayüzden girilen ID ile session'a katılma isteği gönder
+                if (!string.IsNullOrEmpty(TxtTargetId.Text))
+                {
+                    await _connection.InvokeAsync("JoinSession", TxtTargetId.Text);
+                }
+                else
+                {
+                    TxtStatus.Text = "Connected. Please enter a Target ID.";
+                }
             }
             catch (Exception ex)
             {

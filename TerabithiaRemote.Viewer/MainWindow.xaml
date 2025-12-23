@@ -9,9 +9,10 @@
         </Grid.RowDefinitions>
 
         <StackPanel Orientation="Horizontal" Margin="10" Grid.Row="0">
-            <Button Name="BtnConnect" Content="Connect" Width="120" Margin="0,0,8,0" Click="BtnConnect_Click"/>
-            <Button Name="BtnStartStream" Content="Start Stream" Width="140" Click="BtnStartStream_Click"/>
-            <TextBlock Name="TxtStatus" Margin="12,0,0,0" VerticalAlignment="Center"/>
+            <TextBox Name="TxtTargetId" Width="100" Margin="0,0,8,0" VerticalContentAlignment="Center" Tag="Enter ID"/>
+            <Button Name="BtnConnect" Content="Connect" Width="100" Margin="0,0,8,0" Click="BtnConnect_Click"/>
+            <Button Name="BtnStartStream" Content="Start Stream" Width="120" Click="BtnStartStream_Click"/>
+            <TextBlock Name="TxtStatus" Margin="12,0,0,0" VerticalAlignment="Center" FontWeight="Bold"/>
         </StackPanel>
 
         <Border Grid.Row="1" Margin="10" BorderThickness="1" BorderBrush="Gray">
